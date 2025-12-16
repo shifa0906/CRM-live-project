@@ -20,8 +20,50 @@ export default function LoginPage() {
   const [fpMsg, setFpMsg] = useState<string | null>(null);
   const [fpLoading, setFpLoading] = useState(false);
 
+  // ✅ Inline validation state
+  const [touched, setTouched] = useState({
+    email: false,
+    password: false,
+    fpEmail: false,
+  });
+
+  // ✅ Validators
+  const isValidEmail = (v: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+
+  const emailError = !email.trim()
+    ? "Email is required"
+    : !isValidEmail(email)
+    ? "Enter a valid email"
+    : null;
+
+  const passwordError = !password
+    ? "Password is required"
+    : password.length < 6
+    ? "Password must be at least 6 characters"
+    : null;
+
+  const fpEmailError = !fpEmail.trim()
+    ? "Email is required"
+    : !isValidEmail(fpEmail)
+    ? "Enter a valid email"
+    : null;
+
+  const hasLoginErrors = !!emailError || !!passwordError;
+  const hasFpErrors = !!fpEmailError;
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // ✅ Mark all login fields touched so inline errors show
+    setTouched((t) => ({ ...t, email: true, password: true }));
+
+    // ✅ Stop submit if invalid
+    if (hasLoginErrors) {
+      dispatch(loginFailure(emailError || passwordError || "Invalid input"));
+      return;
+    }
+
     if (!email || !password) {
       dispatch(loginFailure("Email and password are required"));
       return;
@@ -43,6 +85,16 @@ export default function LoginPage() {
   async function handleForgotSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFpMsg(null);
+
+    // ✅ Mark forgot email touched so inline error shows
+    setTouched((t) => ({ ...t, fpEmail: true }));
+
+    // ✅ Stop submit if invalid
+    if (hasFpErrors) {
+      setFpMsg(fpEmailError);
+      return;
+    }
+
     setFpLoading(true);
     try {
       const res = await fetch("/api/auth/forgot-password", {
@@ -82,8 +134,12 @@ export default function LoginPage() {
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => setTouched((t) => ({ ...t, email: true }))}
             required
           />
+          {touched.email && emailError && (
+            <p className="mt-1 text-xs text-rose-600">{emailError}</p>
+          )}
         </label>
 
         <div className="text-sm">
@@ -106,6 +162,7 @@ export default function LoginPage() {
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => setTouched((t) => ({ ...t, password: true }))}
               required
             />
 
@@ -126,6 +183,10 @@ export default function LoginPage() {
               )}
             </button>
           </div>
+
+          {touched.password && passwordError && (
+            <p className="mt-1 text-xs text-rose-600">{passwordError}</p>
+          )}
         </div>
 
         {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -163,15 +224,23 @@ export default function LoginPage() {
               Enter your account email to receive a password reset link.
             </p>
             <form onSubmit={handleForgotSubmit} className="space-y-3">
-              <input
-                type="email"
-                required
-                value={fpEmail}
-                onChange={(e) => setFpEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500"
-              />
+              <div>
+                <input
+                  type="email"
+                  required
+                  value={fpEmail}
+                  onChange={(e) => setFpEmail(e.target.value)}
+                  onBlur={() => setTouched((t) => ({ ...t, fpEmail: true }))}
+                  placeholder="you@example.com"
+                  className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500"
+                />
+                {touched.fpEmail && fpEmailError && (
+                  <p className="mt-1 text-xs text-rose-600">{fpEmailError}</p>
+                )}
+              </div>
+
               {fpMsg && <p className="text-sm text-gray-700">{fpMsg}</p>}
+
               <div className="flex gap-2">
                 <button
                   type="button"

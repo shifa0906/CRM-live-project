@@ -29,14 +29,7 @@ interface Deal {
 const dealFilters = [
   {
     label: "Deal Owner",
-    options: [
-      "Maria Johnson",
-      "Shaimah",
-      "Mizba",
-      "Greeshma",
-      "Sabira",
-      "Shifa",
-    ],
+    options: ["Maria Johnson", "Shaimah", "Mizba", "Greeshma", "Sabira", "Shifa"],
   },
   {
     label: "Deal Stage",
@@ -48,7 +41,7 @@ const dealFilters = [
       "Appointment Scheduled",
       "Decision Maker Bought In",
       "Closed Lost",
-      "Negotiation"
+      "Negotiation",
     ],
   },
 ];
@@ -57,19 +50,29 @@ export default function DealsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [deals, setDeals] = useState<Deal[]>([]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOwner, setSelectedOwner] = useState("");
   const [selectedStage, setSelectedStage] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
+
+  // 🔥 NEW: Separate date filters
+  const [selectedCloseDate, setSelectedCloseDate] = useState("");
+  const [selectedCreatedDate, setSelectedCreatedDate] = useState("");
+
   const [tempAssociatedLead, setTempAssociatedLead] = useState("");
+
   const searchParams = useSearchParams();
   const openModal = searchParams.get("openModal");
   const leadName = searchParams.get("leadName");
   const leadId = searchParams.get("leadId");
+
   const itemsPerPage = 10;
+
+  // Load deals
   useEffect(() => {
     const stored = localStorage.getItem("deals");
     if (stored) {
@@ -92,10 +95,12 @@ export default function DealsPage() {
         );
       }
     };
+
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
-  
+
+  // Open modal from Lead convert page
   useEffect(() => {
     if (openModal === "true") {
       setTempAssociatedLead(leadName || "");
@@ -104,27 +109,28 @@ export default function DealsPage() {
       setIsModalOpen(true);
     }
   }, [openModal, leadName]);
-  
+
+  // SAVE DEAL
   const handleSaveDeal = (dealData: Omit<Deal, "id">) => {
     let updatedDeals: Deal[];
 
+    // ❗ Remove createdDate from dealData to avoid overrides
+    const { createdDate, ...dealWithoutDate } = dealData;
+
     const newDeal: Deal = {
       id: Date.now(),
-      ...dealData,
+      createdDate: new Date().toISOString(), // 🔥 Always set created date
+      ...dealWithoutDate,
       associatedLead: tempAssociatedLead || dealData.associatedLead || "",
     };
 
-    if (modalMode === "edit" && selectedDeal) {
-      updatedDeals = deals.map((d) =>
-        d.id === selectedDeal.id ? { ...d, ...dealData } : d
-      );
-    } else {
-      updatedDeals = [newDeal, ...deals];
-    }
+    updatedDeals = [newDeal, ...deals];
 
     setDeals(updatedDeals);
     localStorage.setItem("deals", JSON.stringify(updatedDeals));
     window.dispatchEvent(new Event("storage"));
+
+    // Convert lead if needed
     if (leadId || newDeal.associatedLead) {
       const storedLeads = localStorage.getItem("leads");
       if (storedLeads) {
@@ -139,22 +145,26 @@ export default function DealsPage() {
           }
           return l;
         });
+
         localStorage.setItem("leads", JSON.stringify(updatedLeads));
         window.dispatchEvent(new Event("storage"));
       }
     }
+
     setIsModalOpen(false);
     setSelectedDeal(null);
     setModalMode("create");
     setTempAssociatedLead("");
   };
 
+  // EDIT
   const handleEdit = (deal: Deal) => {
     setModalMode("edit");
     setSelectedDeal(deal);
     setIsModalOpen(true);
   };
 
+  // DELETE
   const handleDelete = (deal: Deal) => {
     const updated = deals.filter((d) => d.id !== deal.id);
     setDeals(updated);
@@ -168,31 +178,50 @@ export default function DealsPage() {
     setSelectedDeal(null);
     setIsModalOpen(true);
   };
-  
+
+  // FILTERING
   const filteredDeals = deals.filter((deal) => {
     const matchesSearch =
       deal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       deal.owner.some((o) =>
         o.toLowerCase().includes(searchTerm.toLowerCase())
       );
-    const matchesOwner = selectedOwner
-      ? deal.owner.includes(selectedOwner)
-      : true;
+
+    const matchesOwner = selectedOwner ? deal.owner.includes(selectedOwner) : true;
+
     const matchesStage = selectedStage ? deal.stage === selectedStage : true;
-    const dealDisplayDate = formatDisplayDateOnly(deal.closeDate);
-    const matchesDate = selectedDate ? dealDisplayDate === selectedDate : true;
-    return matchesSearch && matchesOwner && matchesStage && matchesDate;
+
+    const matchesCloseDate = selectedCloseDate
+  ? deal.closeDate.slice(0, 10) === selectedCloseDate
+  : true;
+
+const matchesCreatedDate = selectedCreatedDate
+  ? deal.createdDate.slice(0, 10) === selectedCreatedDate
+  : true;
+
+
+    return (
+      matchesSearch &&
+      matchesOwner &&
+      matchesStage &&
+      matchesCloseDate &&
+      matchesCreatedDate
+    );
   });
-    useEffect(() => {
+
+  // pagination
+  useEffect(() => {
     const calculatedTotalPages = Math.ceil(filteredDeals.length / itemsPerPage);
     setTotalPages(calculatedTotalPages > 0 ? calculatedTotalPages : 1);
     if (currentPage > calculatedTotalPages) {
       setCurrentPage(1);
     }
   }, [filteredDeals.length, currentPage]);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentPageDeals = filteredDeals.slice(startIndex, endIndex);
+
+  const currentPageDeals = filteredDeals.slice(
+    (currentPage - 1) * itemsPerPage,
+    (currentPage - 1) * itemsPerPage + itemsPerPage
+  );
 
   const columns = [
     { key: "checkbox", label: "" },
@@ -201,9 +230,9 @@ export default function DealsPage() {
     { key: "closeDate", label: "CLOSE DATE" },
     { key: "owner", label: "DEAL OWNER" },
     { key: "amount", label: "AMOUNT" },
-     { key: "associatedlead",label:"Associated Lead"},
+    { key: "associatedlead", label: "Associated Lead" },
     { key: "actions", label: "ACTIONS" },
-     ];
+  ];
 
   return (
     <div className="bg-white m-2 rounded-md overflow-hidden">
@@ -212,11 +241,13 @@ export default function DealsPage() {
         searchPlaceholder="Search phone,name,city"
         onSearch={setSearchTerm}
         filters={dealFilters}
-        onFilterChange={(name, val) => {
-          if (name === "Deal Owner") setSelectedOwner(val);
-          else if (name === "Deal Stage") setSelectedStage(val);
+        onFilterChange={(label, val) => {
+          if (label === "Deal Owner") setSelectedOwner(val);
+          else if (label === "Deal Stage") setSelectedStage(val);
+          else if (label === "Close Date") setSelectedCloseDate(val);
+          else if (label === "Created Date") setSelectedCreatedDate(val);
         }}
-        onDateChange={setSelectedDate}
+        onDateChange={() => {}} // required prop but unused
         currentPage={currentPage}
         totalPages={totalPages}
         onPageChange={setCurrentPage}
@@ -224,35 +255,32 @@ export default function DealsPage() {
         activeFilters={{
           "Deal Owner": selectedOwner,
           "Deal Stage": selectedStage,
-          Date: selectedDate,
+          "Close Date": selectedCloseDate,
+          "Created Date": selectedCreatedDate,
         }}
         isDealPage={true}
       />
+
       <CreateDeal
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
           setSelectedDeal(null);
           setModalMode("create");
-          setTempAssociatedLead("");
         }}
         onSave={handleSaveDeal}
-        initialData={
-          modalMode === "edit" ? selectedDeal || undefined : undefined
-        }
+        initialData={modalMode === "edit" ? selectedDeal || undefined : undefined}
         mode={modalMode}
         associatedLead={tempAssociatedLead}
       />
+
       <div className="px-4">
         <TableLayout columns={columns}>
           {currentPageDeals.length > 0 ? (
             currentPageDeals.map((deal) => (
               <TableRow key={deal.id}>
                 <TableCell isCheckbox>
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
-                  />
+                  <input type="checkbox" className="h-4 w-4" />
                 </TableCell>
 
                 <TableCell>
@@ -272,6 +300,7 @@ export default function DealsPage() {
                 <TableCell>{deal.owner.join(", ")}</TableCell>
                 <TableCell>{deal.amount}</TableCell>
                 <TableCell>{deal.associatedLead || "-"}</TableCell>
+
                 <TableCell>
                   <ActionButtons
                     item={deal}
@@ -284,9 +313,7 @@ export default function DealsPage() {
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length}>
-                <div className="py-4 text-gray-500 text-center">
-                  No deals found
-                </div>
+                <div className="py-4 text-gray-500 text-center">No deals found</div>
               </TableCell>
             </TableRow>
           )}
