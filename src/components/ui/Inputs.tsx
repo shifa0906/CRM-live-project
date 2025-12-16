@@ -212,9 +212,17 @@ export function Inputs({
           >
             <span className="truncate text-left">
               {(value as string[])?.length
-                ? (value as string[]).join(", ")
+                ? (value as string[])
+                    .map((val) => {
+                      const option = optionsList?.find(
+                        (o) => String(o.value) === String(val)
+                      );
+                      return option?.label || val;
+                    })
+                    .join(", ")
                 : placeholder || "Choose"}
             </span>
+
             <ChevronDownIcon
               className="w-3 h-3 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
               strokeWidth={3.5}
@@ -287,8 +295,8 @@ export function Inputs({
             options={{
               enableTime: true,
               noCalendar: true,
-              time_24hr: false,
-              dateFormat: "h:i K",
+              time_24hr: true,
+              dateFormat: "H:i",
               allowInput: true,
             }}
             onChange={(_, str) => (props as any).onChange?.(str)}
